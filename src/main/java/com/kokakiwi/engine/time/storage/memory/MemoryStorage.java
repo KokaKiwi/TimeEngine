@@ -1,6 +1,7 @@
 package com.kokakiwi.engine.time.storage.memory;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,11 @@ import com.kokakiwi.engine.time.storage.StorageEntry;
 public class MemoryStorage implements Storage
 {
     private final Map<Long, List<MemoryStorageEntry>> entries = new HashMap<Long, List<MemoryStorageEntry>>();
+    
+    public Collection<Long> getKeys()
+    {
+        return entries.keySet();
+    }
     
     public List<? extends StorageEntry> getEntries(long timestamp)
     {

@@ -5,6 +5,7 @@ import java.util.HashMap;
 import com.kokakiwi.engine.time.data.Entity;
 import com.kokakiwi.engine.time.storage.Storage;
 import com.kokakiwi.engine.time.storage.StorageEntry;
+import com.kokakiwi.engine.time.utils.MathsUtils;
 
 /**
  * Main class, more docs on Wiki (URL HERE)
@@ -18,6 +19,8 @@ public class TimeEngine
     private Storage                        storage  = null;
     
     private final HashMap<Integer, Entity> entities = new HashMap<Integer, Entity>();
+    
+    private long                           pointer  = 0;
     
     public TimeEngine(Storage storage)
     {
@@ -53,6 +56,68 @@ public class TimeEngine
         }
     }
     
+    public void put()
+    {
+        put(System.currentTimeMillis());
+    }
+    
+    public void put(long pointer)
+    {
+        this.pointer = pointer;
+    }
+    
+    public long get()
+    {
+        return pointer;
+    }
+    
+    public void rewind(int delta)
+    {
+        if (storage == null)
+        {
+            throw new NullPointerException("storage");
+        }
+        
+        long timestamp = pointer - delta;
+        long timestamp_low = Long.MAX_VALUE;
+        long timestamp_high = Long.MAX_VALUE;
+        
+        for (long key : storage.getKeys())
+        {
+            long diff = Math.abs(key - timestamp);
+            long diff_high = Math.abs(timestamp_high - timestamp);
+            long diff_low = Math.abs(timestamp - timestamp_low);
+            
+            if (timestamp == key)
+            {
+                timestamp_high = timestamp;
+                timestamp_low = timestamp;
+                
+                break;
+            }
+            
+            if (diff <= diff_high && (key - timestamp) >= 0)
+            {
+                timestamp_high = key;
+            }
+            
+            if (diff <= diff_low && (key - timestamp) <= 0)
+            {
+                timestamp_low = key;
+            }
+        }
+        
+        apply(timestamp, timestamp_low, timestamp_high);
+        pointer = timestamp;
+    }
+    
+    public void save()
+    {
+        put();
+        
+        save(pointer);
+    }
+    
     public void save(long timestamp)
     {
         if (storage == null)
@@ -74,6 +139,11 @@ public class TimeEngine
     
     public void apply(long timestamp)
     {
+        apply(timestamp, timestamp, timestamp);
+    }
+    
+    public void apply(long timestamp, long timestamp_low, long timestamp_high)
+    {
         if (storage == null)
         {
             throw new NullPointerException("storage");
@@ -81,11 +151,27 @@ public class TimeEngine
         
         for (Entity entity : entities.values())
         {
-            StorageEntry entry = storage.getEntry(timestamp, entity.getId());
+            StorageEntry entry_low = storage.getEntry(timestamp_low,
+                    entity.getId());
+            StorageEntry entry_high = null;
+            if (timestamp_high > timestamp_low)
+            {
+                entry_high = storage.getEntry(timestamp_high, entity.getId());
+            }
             
             for (int field : entity.getFields())
             {
-                float value = entry.getValue(field);
+                float value = entry_low.getValue(field);
+                
+                if (entry_high != null)
+                {
+                    float value_high = entry_high.getValue(field);
+                    float t = (timestamp - timestamp_low)
+                            / (timestamp_high - timestamp_low);
+                    
+                    value = MathsUtils.lerp(value, value_high, t);
+                }
+                
                 entity.setValue(field, value);
             }
         }
